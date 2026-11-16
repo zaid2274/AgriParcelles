@@ -1,0 +1,1022 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriParcelles - Cartographie agricole</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body { font-family: Arial, sans-serif; }
+
+        header {
+            height: 60px;
+            background: #245c38;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 22px;
+        }
+
+        header h1 { font-size: 22px; }
+
+        #map {
+            width: 100%;
+            height: calc(100vh - 60px);
+        }
+
+        .coordinates, .parcel-status {
+            background: white;
+            padding: 8px 12px;
+            border: 1px solid #999;
+            border-radius: 5px;
+            font-size: 13px;
+            box-shadow: 0 1px 5px #999;
+        }
+
+        .map-button {
+            display: block;
+            background: white;
+            color: #245c38;
+            padding: 9px 12px;
+            margin-bottom: 6px;
+            border: 1px solid #245c38;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .map-button:hover { background: #e8f2eb; }
+
+
+        .coordinate-search {
+            background: white;
+            padding: 12px;
+            border-radius: 7px;
+            box-shadow: 0 1px 6px #777;
+            width: 230px;
+        }
+
+        .coordinate-search h3 {
+            color: #245c38;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .coordinate-search label {
+            display: block;
+            font-size: 12px;
+            margin: 7px 0 4px;
+        }
+
+        .coordinate-search input {
+            width: 100%;
+            padding: 7px;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+        }
+
+        .coordinate-search button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 9px;
+            background: #245c38;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .coordinate-error {
+            color: #b42318;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        /* Formulaire d'enregistrement des parcelles - F5 */
+        .parcel-form {
+            background: white;
+            padding: 18px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            width: 320px;
+            max-width: 90vw;
+        }
+
+        .parcel-form h3 {
+            color: #245c38;
+            margin-bottom: 12px;
+        }
+
+        .parcel-form label {
+            display: block;
+            font-size: 13px;
+            margin: 9px 0 4px;
+        }
+
+        .parcel-form input,
+        .parcel-form select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+        }
+
+        .parcel-form .form-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .parcel-form button {
+            flex: 1;
+            padding: 9px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .parcel-form .save-button {
+            background: #245c38;
+            color: white;
+        }
+
+        .parcel-form .cancel-button {
+            background: #eee;
+            color: #333;
+        }
+
+        .parcel-form .form-error {
+            color: #b42318;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .parcel-popup h3 {
+            color: #245c38;
+            margin-bottom: 8px;
+        }
+
+        .parcel-popup p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+/* Regrouper les outils Geoman sans déplacer les autres panneaux */
+.leaflet-top.leaflet-left .leaflet-pm-toolbar {
+    float: left !important;
+    clear: none !important;
+    margin-right: 6px !important;
+}
+
+/* Réserver une nouvelle ligne aux outils Geoman */
+.leaflet-top.leaflet-left .leaflet-pm-toolbar:first-of-type {
+    clear: both !important;
+}
+
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>AgriParcelles - Cartographie agricole</h1>
+</header>
+
+<div id="map"></div>
+<!-- Formulaire d'enregistrement d'une parcelle - F5 -->
+<div id="parcel-form-container" style="display:none; position:absolute; top:80px; right:20px; z-index:1000;">
+    <div class="parcel-form">
+        <h3>Enregistrer une parcelle</h3>
+
+        <form id="parcel-form">
+            <label for="num-parcelle">Numéro de parcelle *</label>
+            <input type="text" id="num-parcelle" required>
+
+            <label for="agriculteur">Nom de l'agriculteur *</label>
+            <input type="text" id="agriculteur" required>
+
+            <label for="culture">Culture *</label>
+            <select id="culture" required>
+                <option value="">-- Choisir une culture --</option>
+                <option>Blé dur</option>
+                <option>Blé tendre</option>
+                <option>Orge</option>
+                <option>Maïs</option>
+                <option>Betterave sucrière</option>
+                <option>Olivier</option>
+                <option>Agrumes</option>
+                <option>Maraîchage</option>
+                <option>Luzerne</option>
+                <option>Jachère</option>
+                <option>Autre</option>
+            </select>
+
+            <label for="superficie">Superficie (ha)</label>
+            <input type="number" id="superficie" readonly>
+
+            <label for="production">Production (tonnes) *</label>
+            <input type="number" id="production" min="0" step="any" required>
+
+            <div id="form-error" class="form-error" role="alert"></div>
+
+            <div class="form-buttons">
+                <button type="submit" class="save-button">Enregistrer</button>
+                <button type="button" id="cancel-parcel" class="cancel-button">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js"></script>
+
+<script>
+    // Initialisation de la carte
+    const map = L.map('map').setView([31.8, -7.1], 6);
+
+    // Fonds cartographiques
+    const terrain = L.tileLayer(
+        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        { attribution: '© OpenTopoMap', maxZoom: 17 }
+    );
+
+    const satellite = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { attribution: 'Tiles © Esri', maxZoom: 19 }
+    );
+
+    satellite.addTo(map);
+
+    // Echelle graphique demandee par le cahier des charges
+    L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
+
+    // Couche des parcelles
+    const coucheParcelles = L.geoJSON(null, {
+        style: {
+            color: '#FFD700',
+            weight: 2,
+            opacity: 1,
+            fillColor: '#FFD700',
+            fillOpacity: 0.20
+        },
+
+        onEachFeature: function (feature, layer) {
+            const p = feature.properties;
+
+            layer.bindPopup(`
+                <div class="parcel-popup">
+                    <h3>Parcelle ${p.num_parcelle}</h3>
+                    <p><strong>Agriculteur :</strong> ${p.agriculteur}</p>
+                    <p><strong>Culture :</strong> ${p.culture}</p>
+                    <p><strong>Superficie :</strong> ${p.superficie_ha != null ? Number(p.superficie_ha).toFixed(3) : 'Non renseignée'} ha</p>
+                    <p><strong>Production :</strong> ${p.production_t != null ? Number(p.production_t).toFixed(2) : 'Non renseignée'} t</p>
+                    <p><strong>Date :</strong> ${p.date_saisie ?? 'Non renseignée'}</p>
+<details style="margin-top:10px; margin-bottom:8px;">
+    <summary style="cursor:pointer; color:#20623e; font-weight:600;">
+        📅 Choisir une période NDVI
+    </summary>
+
+    <div style="margin-top:8px;">
+        <label>Du :</label>
+        <input type="date" id="ndvi-debut-${p.id}"
+               style="width:135px; margin-right:5px;">
+
+        <label>Au :</label>
+        <input type="date" id="ndvi-fin-${p.id}"
+               style="width:135px;">
+    </div>
+</details>
+
+<button type="button"
+        onclick="afficherNDVI(${p.id}, '${p.num_parcelle}')"
+        style="background:#20623e; color:white; border:none;
+               border-radius:8px; padding:9px 12px;
+               font-size:13px; font-weight:600;
+               cursor:pointer; margin-top:8px;">
+    🌱 Afficher NDVI
+</button>
+
+<button type="button"
+        onclick="supprimerParcelle(${p.id})"
+        style="background:#fce8e8; color:#a52a2a;
+               border:1px solid #f3c6c6;
+               border-radius:8px; padding:9px 12px;
+               font-size:13px; font-weight:600;
+               cursor:pointer; margin-top:8px;">
+    🗑️ Supprimer
+</button>
+                </div>
+            `);
+        }
+    });
+
+    L.control.layers(
+        { "Terrain": terrain, "Satellite": satellite },
+        { "Parcelles agricoles": coucheParcelles }
+    ).addTo(map);
+
+    // Coordonnées du curseur
+    const coordControl = L.control({ position: 'bottomright' });
+
+    coordControl.onAdd = function () {
+        this.div = L.DomUtil.create('div', 'coordinates');
+        this.div.innerHTML = 'Longitude : -- | Latitude : --';
+        return this.div;
+    };
+
+    coordControl.addTo(map);
+
+    map.on('mousemove', function (event) {
+        coordControl.getContainer().innerHTML =
+            'Longitude : ' + event.latlng.lng.toFixed(5) +
+            ' | Latitude : ' + event.latlng.lat.toFixed(5);
+    });
+
+    // Navigation
+    const navigation = L.control({ position: 'topright' });
+
+    navigation.onAdd = function () {
+        const div = L.DomUtil.create('div');
+
+        div.innerHTML = `
+            <button class="map-button" id="vue-maroc">Vue Maroc</button>
+            <button class="map-button" id="zone-z5">Zone Z5</button>
+        `;
+
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+    };
+
+    navigation.addTo(map);
+
+    document.getElementById('vue-maroc').onclick = function () {
+        map.setView([31.8, -7.1], 6);
+    };
+
+   // Périmètre d'étude provisoire autour du centre de Z5
+const contourZ5 = L.circle([30.40, -9.21], {
+    radius: 10000,
+    color: "#087c40",
+    weight: 3,
+    fillColor: "#087c40",
+    fillOpacity: 0.05
+});
+
+document.getElementById('zone-z5').onclick = function () {
+    contourZ5.addTo(map);
+    map.fitBounds(contourZ5.getBounds());
+};
+
+    // Panneau de positionnement par coordonnées WGS84 - F4
+    const searchControl = L.control({ position: 'topleft' });
+
+    searchControl.onAdd = function () {
+        const div = L.DomUtil.create('div', 'coordinate-search');
+
+        div.innerHTML = `
+            <h3>Recherche par coordonnées</h3>
+
+            <label for="longitude">Longitude (X)</label>
+            <input type="number" id="longitude"
+                   step="any" placeholder="Ex : -9.21">
+
+            <label for="latitude">Latitude (Y)</label>
+            <input type="number" id="latitude"
+                   step="any" placeholder="Ex : 30.40">
+
+            <button id="aller-coordonnees">Aller</button>
+
+            <div id="coordinate-error" class="coordinate-error"
+                 role="alert"></div>
+        `;
+
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+
+        return div;
+    };
+
+    searchControl.addTo(map);
+
+    let marqueurRecherche = null;
+
+    document.getElementById('aller-coordonnees').addEventListener('click', function () {
+        const longitudeInput = document.getElementById('longitude').value.trim();
+        const latitudeInput = document.getElementById('latitude').value.trim();
+        const erreur = document.getElementById('coordinate-error');
+
+        erreur.textContent = '';
+
+        if (longitudeInput === '' || latitudeInput === '') {
+            erreur.textContent = 'Veuillez saisir les deux coordonnées.';
+            return;
+        }
+
+        const longitude = Number(longitudeInput);
+        const latitude = Number(latitudeInput);
+
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+            erreur.textContent = 'Les coordonnées doivent être numériques.';
+            return;
+        }
+
+        if (longitude < -17.5 || longitude > -0.9) {
+            erreur.textContent = 'Longitude invalide : valeur autorisée entre -17,5 et -0,9.';
+            return;
+        }
+
+        if (latitude < 20.5 || latitude > 36.1) {
+            erreur.textContent = 'Latitude invalide : valeur autorisée entre 20,5 et 36,1.';
+            return;
+        }
+
+        // Passage automatique au fond satellite
+        if (!map.hasLayer(satellite)) {
+            map.removeLayer(terrain);
+            satellite.addTo(map);
+        }
+
+        // Centrer la carte au niveau de zoom 17
+        map.setView([latitude, longitude], 17);
+
+        // Remplacer le marqueur précédent
+        if (marqueurRecherche) {
+            map.removeLayer(marqueurRecherche);
+        }
+
+        marqueurRecherche = L.marker([latitude, longitude])
+            .addTo(map)
+            .bindPopup(
+                '<strong>Position recherchée</strong><br>' +
+                'Longitude : ' + longitude + '<br>' +
+                'Latitude : ' + latitude
+            )
+            .openPopup();
+    });
+   
+// Panneau de navigation entre les parcelles
+const navigationControl = L.control({ position: "topleft" });
+
+navigationControl.onAdd = function () {
+    const div = L.DomUtil.create("div");
+
+    div.style.cssText = `
+        background: white;
+        padding: 12px;
+        border-radius: 12px;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+        font-family: Arial, sans-serif;
+        min-width: 220px;
+    `;
+
+    div.innerHTML = `
+        <div style="font-weight:bold; color:#20623e; margin-bottom:10px;">
+            🗺️ Navigation des parcelles
+        </div>
+
+        <div id="navigation-info"
+             style="font-size:13px; margin-bottom:10px; color:#555;">
+            Aucune parcelle sélectionnée
+        </div>
+
+    <select id="selection-parcelle"
+            style="width:100%; padding:8px; margin-bottom:10px;
+                   border:1px solid #ccc; border-radius:7px;
+                   background:white; color:#333; cursor:pointer;">
+        <option value="">Choisir une parcelle...</option>
+    </select>
+
+        <div style="display:flex; gap:8px;">
+            <button id="parcelle-precedente" type="button"
+                    style="flex:1; padding:8px; border-radius:7px;
+                           border:1px solid #ddd; cursor:pointer;">
+                ◀ Préc.
+            </button>
+
+            <button id="parcelle-suivante" type="button"
+                    style="flex:1; padding:8px; border-radius:7px;
+                           background:#20623e; color:white;
+                           border:none; cursor:pointer;">
+                Suiv. ▶
+            </button>
+        </div>
+        <button id="exporter-csv" type="button"
+                style="width:100%; margin-top:10px; padding:8px;
+                       border:1px solid #20623e; border-radius:7px;
+                       background:white; color:#20623e;
+                       font-weight:600; cursor:pointer;">
+            📥 Exporter CSV
+        </button>
+    `;
+
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+
+    return div;
+};
+
+navigationControl.addTo(map);
+
+// Emplacement réservé aux outils Geoman
+const emplacementGeoman = L.control({ position: "topleft" });
+
+emplacementGeoman.onAdd = function () {
+    const div = L.DomUtil.create("div", "emplacement-geoman");
+    return div;
+};
+
+emplacementGeoman.addTo(map);
+
+// Activer les boutons de navigation
+document.getElementById("parcelle-precedente").addEventListener("click", function () {
+    naviguerParcelle(-1);
+});
+
+document.getElementById("parcelle-suivante").addEventListener("click", function () {
+    naviguerParcelle(1);
+});
+// Exporter les parcelles au format CSV
+document.getElementById("exporter-csv").addEventListener("click", function () {
+    const parcelles = window.listeParcelles || [];
+
+    if (parcelles.length === 0) {
+        alert("Aucune parcelle à exporter.");
+        return;
+    }
+
+    const lignes = [
+    [
+        "Numéro", "Agriculteur", "Culture",
+        "Superficie (ha)", "Production (t)",
+        "NDVI moyen", "Début NDVI", "Fin NDVI", "Images Sentinel-2"
+    ]
+];
+
+    parcelles.forEach(function (parcelle) {
+        const p = parcelle.properties;
+const ndvi = (window.resultatsNDVI || {})[p.id] || {};
+
+       lignes.push([
+    p.num_parcelle ?? "",
+    p.agriculteur ?? "",
+    p.culture ?? "",
+    p.superficie_ha ?? "",
+    p.production_t ?? "",
+    ndvi.ndvi_moyen ?? "",
+    ndvi.date_debut ?? "",
+    ndvi.date_fin ?? "",
+    ndvi.nombre_images ?? ""
+]);
+    });
+
+    const contenu = lignes.map(function (ligne) {
+        return ligne.map(function (valeur) {
+            return '"' + String(valeur).replace(/"/g, '""') + '"';
+        }).join(";");
+    }).join("\r\n");
+
+    const fichier = new Blob(["\uFEFF" + contenu], {
+        type: "text/csv;charset=utf-8;"
+    });
+
+    const lien = document.createElement("a");
+    lien.href = URL.createObjectURL(fichier);
+    lien.download = "AgriParcelles_export.csv";
+    lien.click();
+
+    URL.revokeObjectURL(lien.href);
+});
+
+// Position de la parcelle sélectionnée dans la liste
+let indexParcelle = -1;
+
+// Sélection directe d'une parcelle dans la liste
+document.getElementById("selection-parcelle").addEventListener("change", function () {
+    if (this.value === "") return;
+
+    const indexChoisi = Number(this.value);
+
+    // Réutiliser la navigation existante
+    naviguerParcelle(indexChoisi - indexParcelle);
+});
+
+function naviguerParcelle(direction) {
+    const parcelles = window.listeParcelles || [];
+
+    if (parcelles.length === 0) {
+        document.getElementById("navigation-info").textContent =
+            "Aucune parcelle enregistrée";
+        return;
+    }
+
+    // Passer à la parcelle précédente ou suivante
+    indexParcelle =
+        (indexParcelle + direction + parcelles.length) % parcelles.length;
+
+    const parcelle = parcelles[indexParcelle];
+
+    // Mettre à jour la liste déroulante
+    const selectParcelle = document.getElementById("selection-parcelle");
+
+    if (selectParcelle) {
+        selectParcelle.value = String(indexParcelle);
+    }
+
+    // Retrouver sa couche sur la carte
+    coucheParcelles.eachLayer(function (layer) {
+        if (layer.feature &&
+            layer.feature.properties.id === parcelle.properties.id) {
+
+            // Centrer et zoomer sur la parcelle
+            map.fitBounds(layer.getBounds(), {
+                padding: [60, 60],
+                maxZoom: 18
+            });
+
+            // Ouvrir ses informations
+            layer.openPopup();
+        }
+    });
+
+    // Mettre à jour le panneau
+    document.getElementById("navigation-info").textContent =
+        "Parcelle " + parcelle.properties.num_parcelle +
+        " (" + (indexParcelle + 1) + "/" + parcelles.length + ")";
+}
+
+    // Chargement depuis Flask
+    async function chargerParcelles() {
+        try {
+            const response = await fetch('/api/parcelles');
+
+            if (!response.ok) throw new Error('Erreur HTTP : ' + response.status);
+
+            const donnees = await response.json();
+
+            coucheParcelles.clearLayers();
+            coucheParcelles.addData(donnees);
+
+            // Liste des parcelles pour la navigation
+            window.listeParcelles = donnees.features || [];
+
+        // Remplir la liste déroulante des parcelles
+        const selectParcelle = document.getElementById("selection-parcelle");
+
+        if (selectParcelle) {
+            selectParcelle.innerHTML =
+                '<option value="">Choisir une parcelle...</option>';
+
+            window.listeParcelles.forEach((parcelle, index) => {
+                const option = document.createElement("option");
+
+                option.value = index;
+                option.textContent =
+                    parcelle.properties.num_parcelle || `Parcelle ${index + 1}`;
+
+                selectParcelle.appendChild(option);
+            });
+        }
+
+         
+
+        } catch (erreur) {
+            console.error(erreur);
+           
+        }
+    }
+
+    chargerParcelles();
+
+    // Outils de dessin Leaflet-Geoman
+    map.pm.addControls({
+        position: 'topleft',
+        drawMarker: false,
+        drawCircle: false,
+        drawCircleMarker: false,
+        drawPolyline: false,
+        drawRectangle: true,
+        drawPolygon: true,
+        editMode: true,
+        dragMode: false,
+        cutPolygon: false,
+        removalMode: true
+    });
+
+// Regrouper les outils Geoman sous le panneau de navigation
+const conteneurGeoman = document.querySelector(".emplacement-geoman");
+
+const barresGeoman = document.querySelectorAll(
+    ".leaflet-top.leaflet-left .leaflet-pm-toolbar"
+);
+
+barresGeoman.forEach(function (barre) {
+    conteneurGeoman.appendChild(barre);
+});
+
+ // Formulaire d'enregistrement des parcelles - F5
+let parcelleEnCours = null;
+
+const formulaireContainer = document.getElementById('parcel-form-container');
+const formulaire = document.getElementById('parcel-form');
+const champSuperficie = document.getElementById('superficie');
+const erreurFormulaire = document.getElementById('form-error');
+
+// Ouverture du formulaire et calcul automatique de la superficie
+map.on('pm:create', async function (event) {
+    parcelleEnCours = event.layer;
+
+    parcelleEnCours.setStyle({
+        color: '#FFD700',
+        weight: 2,
+        fillColor: '#FFD700',
+        fillOpacity: 0.20
+    });
+
+    formulaire.reset();
+    champSuperficie.value = '';
+    erreurFormulaire.textContent = '';
+    formulaireContainer.style.display = 'block';
+
+    try {
+        const response = await fetch('/api/parcelles/superficie', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                geometry: parcelleEnCours.toGeoJSON().geometry
+            })
+        });
+
+        const resultat = await response.json();
+
+        if (!response.ok) {
+            throw new Error(resultat.erreur || 'Impossible de calculer la superficie.');
+        }
+
+        champSuperficie.value = Number(resultat.superficie_ha).toFixed(3);
+
+    } catch (erreur) {
+        console.error(erreur);
+        erreurFormulaire.textContent = erreur.message;
+    }
+});
+
+// Annulation du dessin
+document.getElementById('cancel-parcel').addEventListener('click', function () {
+    if (parcelleEnCours) {
+        map.removeLayer(parcelleEnCours);
+        parcelleEnCours = null;
+    }
+
+    formulaire.reset();
+    champSuperficie.value = '';
+    erreurFormulaire.textContent = '';
+    formulaireContainer.style.display = 'none';
+});
+
+// Enregistrement de la parcelle
+formulaire.addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    if (!parcelleEnCours) {
+        erreurFormulaire.textContent = 'Veuillez dessiner une parcelle.';
+        return;
+    }
+
+    const donnees = {
+        num_parcelle: document.getElementById('num-parcelle').value.trim(),
+        agriculteur: document.getElementById('agriculteur').value.trim(),
+        culture: document.getElementById('culture').value,
+        production_t: Number(document.getElementById('production').value),
+        geometry: parcelleEnCours.toGeoJSON().geometry
+    };
+
+    try {
+        const response = await fetch('/api/parcelles', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(donnees)
+        });
+
+        const resultat = await response.json();
+
+        if (!response.ok) {
+            erreurFormulaire.textContent = resultat.erreur || 'Erreur lors de l’enregistrement.';
+            return;
+        }
+
+        champSuperficie.value = Number(resultat.superficie_ha).toFixed(3);
+
+        alert('Parcelle enregistrée avec succès !');
+
+        formulaireContainer.style.display = 'none';
+        parcelleEnCours = null;
+
+        await chargerParcelles();
+
+        formulaire.reset();
+
+    } catch (erreur) {
+        console.error(erreur);
+        erreurFormulaire.textContent = 'Impossible de contacter le serveur.';
+    }
+});
+async function supprimerParcelle(id) {
+    if (!Number.isInteger(id) || id <= 0) {
+        alert("Identifiant de parcelle invalide.");
+        return;
+    }
+
+    const confirmation = confirm(
+        "Voulez-vous vraiment supprimer cette parcelle ? Cette action est irréversible."
+    );
+
+    if (!confirmation) {
+        return;
+    }
+
+    try {
+        const reponse = await fetch(`/api/parcelles/${id}`, {
+            method: "DELETE"
+        });
+
+        const resultat = await reponse.json();
+
+        if (!reponse.ok) {
+            alert(resultat.erreur || "Erreur lors de la suppression.");
+            return;
+        }
+
+        alert("Parcelle supprimée avec succès.");
+
+        await chargerParcelles();
+
+    } catch (erreur) {
+        console.error(erreur);
+        alert("Impossible de contacter le serveur.");
+    }
+}
+let coucheNDVI = null;
+
+async function afficherNDVI(id, numeroParcelle) {
+    if (!Number.isInteger(id) || id <= 0) {
+        alert("Identifiant de parcelle invalide.");
+        return;
+    }
+
+       try {
+        const debut = document.getElementById(`ndvi-debut-${id}`)?.value || "";
+        const fin = document.getElementById(`ndvi-fin-${id}`)?.value || "";
+
+        const parametres = new URLSearchParams();
+
+        if (debut) parametres.set("date_debut", debut);
+        if (fin) parametres.set("date_fin", fin);
+
+        const url = `/api/parcelles/${id}/ndvi` +
+            (parametres.toString() ? `?${parametres.toString()}` : "");
+
+        const reponse = await fetch(url);
+        const resultat = await reponse.json();
+
+        if (!reponse.ok) {
+            alert(resultat.erreur || "Impossible de calculer le NDVI.");
+            return;
+        }
+
+// Mémoriser le dernier résultat NDVI de cette parcelle
+window.resultatsNDVI = window.resultatsNDVI || {};
+
+window.resultatsNDVI[id] = {
+    ndvi_moyen: resultat.ndvi_moyen,
+    date_debut: resultat.date_debut,
+    date_fin: resultat.date_fin,
+    nombre_images: resultat.nombre_images
+};
+
+        // Retirer l'ancienne carte NDVI
+        if (coucheNDVI !== null) {
+            map.removeLayer(coucheNDVI);
+        }
+
+        // Afficher la carte NDVI de la parcelle
+        coucheNDVI = L.tileLayer(resultat.url_carte, {
+            opacity: 0.85,
+            maxZoom: 22
+        });
+
+        coucheNDVI.addTo(map);
+        coucheNDVI.bringToFront();
+
+   
+        // Afficher les résultats dans un panneau sur la carte
+        if (window.panneauNDVI) {
+            map.removeControl(window.panneauNDVI);
+        }
+
+        window.panneauNDVI = L.control({ position: "bottomright" });
+
+window.fermerNDVI = function () {
+    if (window.panneauNDVI) {
+        map.removeControl(window.panneauNDVI);
+        window.panneauNDVI = null;
+    }
+
+    if (coucheNDVI !== null) {
+        map.removeLayer(coucheNDVI);
+        coucheNDVI = null;
+    }
+};
+
+        window.panneauNDVI.onAdd = function () {
+            const panneau = L.DomUtil.create("div");
+
+            panneau.style.cssText = `
+                background: white;
+                padding: 18px;
+                border-radius: 14px;
+                box-shadow: 0 6px 25px rgba(0,0,0,0.20);
+                width: 270px;
+                font-family: Arial, sans-serif;
+                color: #243b2d;
+            `;
+
+            panneau.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+    <div style="font-size:17px; font-weight:bold; color:#20623e;">
+        🌱 Analyse NDVI
+    </div>
+
+    <button type="button"
+            onclick="window.fermerNDVI()"
+            title="Fermer l'analyse NDVI"
+            style="background:#f1f5f2; border:none; border-radius:8px;
+                   width:28px; height:28px; cursor:pointer;
+                   font-size:20px; color:#52665a;">
+        ×
+    </button>
+</div>
+
+                <div style="font-size:12px; color:#777; margin-top:5px;">
+                    Parcelle ${numeroParcelle} · Sentinel-2
+                </div>
+
+                <div style="margin-top:16px; font-size:13px;">
+                    NDVI moyen
+                </div>
+
+                <div style="font-size:34px; font-weight:bold; color:#20623e;">
+                    ${Number(resultat.ndvi_moyen).toFixed(3)}
+                </div>
+
+                <div style="height:12px; border-radius:8px;
+                    background:linear-gradient(to right,
+                    #c62828, #f39c12, #f4d03f, #8bc34a, #1b7f43);
+                    margin-top:15px;">
+                </div>
+
+                <div style="display:flex; justify-content:space-between;
+                    font-size:11px; color:#777; margin-top:5px;">
+                    <span>NDVI faible</span>
+                    <span>NDVI élevé</span>
+                </div>
+
+                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+
+                <div style="font-size:12px; line-height:1.8;">
+                    📅 ${resultat.date_debut} au ${resultat.date_fin}
+                    <div>🛰️ ${resultat.nombre_images} images Sentinel-2</div>
+                </div>
+            `;
+
+            L.DomEvent.disableClickPropagation(panneau);
+            L.DomEvent.disableScrollPropagation(panneau);
+
+            return panneau;
+        };
+
+        window.panneauNDVI.addTo(map);
+
+    } catch (erreur) {
+        console.error(erreur);
+        alert("Erreur de connexion au serveur NDVI.");
+    }
+}
+
+</script>
+
+</body>
+</html>
+
+
+
+
+

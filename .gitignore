@@ -1,0 +1,27 @@
+# Environnement Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Base de données locale
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Identifiants et fichiers sensibles
+.env
+.env.*
+!.env.example
+*.json
+*credentials*
+*secret*
+*.pem
+*.key
+
+# Fichiers temporaires
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
